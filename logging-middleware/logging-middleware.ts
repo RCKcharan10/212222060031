@@ -49,11 +49,9 @@ class Logger {
       })
 
       if (!response.ok) {
-        // Fallback to localStorage if API fails
         this.logToLocalStorage(stack, level, packageName, message)
       }
     } catch (error) {
-      // Fallback to localStorage if network fails
       this.logToLocalStorage(stack, level, packageName, message)
     }
   }
@@ -73,7 +71,6 @@ class Logger {
   }
 }
 
-// Export the logging function
 export const Log = (
   stack: LogParams["stack"],
   level: LogParams["level"],
