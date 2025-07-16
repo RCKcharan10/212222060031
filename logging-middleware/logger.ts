@@ -1,42 +1,87 @@
-import type { LogLevel } from "@/Frontend Test Submission/types"
+interface LogParams {
+  stack: "backend" | "frontend"
+  level: "debug" | "info" | "warn" | "error" | "fatal"
+  package: string
+  message: string
+}
 
-const LOGGING_API_ENDPOINT = "http://20.244.56.144/evaluation-service/logs"
+interface LogResponse {
+  logID: string
+  message: string
+}
 
-/**
- * Custom logging middleware. Sends log data to a remote API endpoint.
- * No console.log is used as per requirements.
- * @param stack - The component or function where the log originated (e.g., 'URLShortenerPage', 'handleShorten').
- * @param level - The log level ('INFO', 'WARN', 'ERROR').
- * @param pkg - The package name (e.g., 'frontend-app').
- * @param message - The log message.
- */
-export async function Log(stack: string, level: LogLevel, pkg: string, message: string): Promise<void> {
-  try {
-    const logData = {
+class Logger {
+  private static instance: Logger
+  private authToken: string | null = null
+
+  private constructor() {}
+
+  static getInstance(): Logger {
+    if (!Logger.instance) {
+      Logger.instance = new Logger()
+    }
+    return Logger.instance
+  }
+
+  setAuthToken(token: string) {
+    this.authToken = token
+  }
+
+  async log(
+    stack: LogParams["stack"],
+    level: LogParams["level"],
+    packageName: LogParams["package"],
+    message: string,
+  ): Promise<void> {
+    try {
+      const response = await fetch("http://20.244.56.144/evaluation-service/logs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.authToken}`,
+        },
+        body: JSON.stringify({
+          stack,
+          level,
+          package: packageName,
+          message,
+        }),
+      })
+
+      if (!response.ok) {
+        // Fallback to localStorage if API fails
+        this.logToLocalStorage(stack, level, packageName, message)
+      }
+    } catch (error) {
+      // Fallback to localStorage if network fails
+      this.logToLocalStorage(stack, level, packageName, message)
+    }
+  }
+
+  private logToLocalStorage(stack: string, level: string, packageName: string, message: string) {
+    const logEntry = {
       timestamp: new Date().toISOString(),
       stack,
       level,
-      package: pkg,
+      package: packageName,
       message,
     }
 
-    // Using fetch to send log data to the API endpoint
-    const response = await fetch(LOGGING_API_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(logData),
-    })
-
-    // We don't use console.log, so just handle the response silently
-    if (!response.ok) {
-      // In a real application, this might be sent to a different, more robust error logging system
-      // For this exercise, we simply acknowledge the failure without logging to console.
-      // No console.error here.
-    }
-  } catch (error) {
-    // Catch network errors or other issues during the fetch request
-    // Again, no console.log.
+    const logs = JSON.parse(localStorage.getItem("app_logs") || "[]")
+    logs.push(logEntry)
+    localStorage.setItem("app_logs", JSON.stringify(logs))
   }
 }
+
+// Export the logging function
+export const Log = (
+  stack: LogParams["stack"],
+  level: LogParams["level"],
+  packageName: LogParams["package"],
+  message: string,
+) => {
+  const logger = Logger.getInstance()
+  logger.log(stack, level, packageName, message)
+}
+
+export default Logger
